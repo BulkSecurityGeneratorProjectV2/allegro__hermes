@@ -65,4 +65,8 @@ class Throughput {
     public String toString() {
         return "(in=" + rateIn + ", out=" + rateOut + ")";
     }
+
+    public double sum() {
+        return rateIn + rateOut;
+    }
 }

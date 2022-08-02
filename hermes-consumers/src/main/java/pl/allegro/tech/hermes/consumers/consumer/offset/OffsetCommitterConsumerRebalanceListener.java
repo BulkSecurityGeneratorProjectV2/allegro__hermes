@@ -5,9 +5,6 @@ import org.apache.kafka.common.TopicPartition;
 import pl.allegro.tech.hermes.api.SubscriptionName;
 
 import java.util.Collection;
-import java.util.Set;
-
-import static java.util.stream.Collectors.toSet;
 
 public class OffsetCommitterConsumerRebalanceListener implements ConsumerRebalanceListener {
 
@@ -21,15 +18,11 @@ public class OffsetCommitterConsumerRebalanceListener implements ConsumerRebalan
 
     @Override
     public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
-        state.revoke(name, integerPartitions(partitions));
+        state.revoke(name, partitions);
     }
 
     @Override
     public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
-        state.assign(name, integerPartitions(partitions));
-    }
-
-    private Set<Integer> integerPartitions(Collection<TopicPartition> partitions) {
-        return partitions.stream().map(TopicPartition::partition).collect(toSet());
+        state.assign(name, partitions);
     }
 }

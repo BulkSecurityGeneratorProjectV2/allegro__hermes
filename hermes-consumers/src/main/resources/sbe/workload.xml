@@ -31,4 +31,12 @@
             <field name="throughput" id="5" type="Throughput"/>
         </group>
     </sbe:message>
+    <sbe:message name="NegotiatedWorkloadMetrics" id="3" description="Workload metrics of a consumer node">
+        <field name="capacity" id="1" type="double"/>
+        <group name="subscriptionLoads" id="2">
+            <field name="id" id="3" type="int64"/>
+            <field name="loadStatus" id="4" type="SubscriptionLoadStatus"/>
+            <field name="throughput" id="5" type="Throughput"/>
+        </group>
+    </sbe:message>
 </sbe:messageSchema>

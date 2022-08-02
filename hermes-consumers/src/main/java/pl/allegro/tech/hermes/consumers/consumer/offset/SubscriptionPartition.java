@@ -1,5 +1,6 @@
 package pl.allegro.tech.hermes.consumers.consumer.offset;
 
+import org.apache.kafka.common.TopicPartition;
 import pl.allegro.tech.hermes.api.SubscriptionName;
 import pl.allegro.tech.hermes.common.kafka.KafkaTopicName;
 
@@ -36,6 +37,10 @@ public class SubscriptionPartition {
 
     public long getPartitionAssignmentTerm() {
         return partitionAssignmentTerm;
+    }
+
+    public TopicPartition toTopicPartition() {
+        return new TopicPartition(kafkaTopicName.asString(), partition);
     }
 
     @Override

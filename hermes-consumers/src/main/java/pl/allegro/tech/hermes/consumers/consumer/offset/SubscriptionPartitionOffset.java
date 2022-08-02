@@ -1,5 +1,6 @@
 package pl.allegro.tech.hermes.consumers.consumer.offset;
 
+import org.apache.kafka.common.TopicPartition;
 import pl.allegro.tech.hermes.api.SubscriptionName;
 import pl.allegro.tech.hermes.common.kafka.KafkaTopicName;
 import pl.allegro.tech.hermes.common.kafka.offset.PartitionOffset;
@@ -34,6 +35,10 @@ public class SubscriptionPartitionOffset {
 
     public KafkaTopicName getKafkaTopicName() {
         return subscriptionPartition.getKafkaTopicName();
+    }
+
+    public TopicPartition toTopicPartition() {
+        return subscriptionPartition.toTopicPartition();
     }
 
     public int getPartition() {

@@ -2,6 +2,7 @@ package pl.allegro.tech.hermes.consumers.consumer.offset
 
 import com.codahale.metrics.MetricRegistry
 import com.netflix.config.DynamicPropertyFactory
+import org.apache.kafka.common.TopicPartition
 import pl.allegro.tech.hermes.api.SubscriptionName
 import pl.allegro.tech.hermes.common.config.ConfigFactory
 import pl.allegro.tech.hermes.common.kafka.KafkaTopicName
@@ -355,11 +356,11 @@ class OffsetCommitterTest extends Specification {
     }
 
     private assignPartitions(int... partitions) {
-        state.assign(SUBSCRIPTION_NAME, [*partitions])
+        state.assign(SUBSCRIPTION_NAME, partitions.collect {it -> new TopicPartition(KAFKA_TOPIC_NAME.asString(), it)})
     }
 
     private revokePartitions(int... partitions) {
-        state.revoke(SUBSCRIPTION_NAME, [*partitions])
+        state.revoke(SUBSCRIPTION_NAME, partitions.collect {it -> new TopicPartition(KAFKA_TOPIC_NAME.asString(), it)})
     }
 
     private revokeAllPartitions() {

@@ -6,7 +6,7 @@ import pl.allegro.tech.hermes.common.config.Configs;
 import pl.allegro.tech.hermes.common.message.undelivered.UndeliveredMessageLog;
 import pl.allegro.tech.hermes.common.metric.HermesMetrics;
 import pl.allegro.tech.hermes.common.metric.executor.InstrumentedExecutorServiceFactory;
-import pl.allegro.tech.hermes.consumers.consumer.load.SubscriptionLoadReporter;
+import pl.allegro.tech.hermes.consumers.consumer.load.LoadLimiter;
 import pl.allegro.tech.hermes.consumers.consumer.offset.OffsetQueue;
 import pl.allegro.tech.hermes.consumers.consumer.rate.InflightsPool;
 import pl.allegro.tech.hermes.consumers.consumer.rate.SerialConsumerRateLimiter;
@@ -38,7 +38,7 @@ public class ConsumerMessageSenderFactory {
     private final UndeliveredMessageLog undeliveredMessageLog;
     private final Clock clock;
     private final ConsumerAuthorizationHandler consumerAuthorizationHandler;
-    private final SubscriptionLoadReporter subscriptionLoadReporter;
+    private final LoadLimiter loadLimiter;
     private final ExecutorService rateLimiterReportingExecutor;
 
     public ConsumerMessageSenderFactory(ConfigFactory configFactory, HermesMetrics hermesMetrics, MessageSenderFactory messageSenderFactory,
@@ -46,7 +46,7 @@ public class ConsumerMessageSenderFactory {
                                         UndeliveredMessageLog undeliveredMessageLog, Clock clock,
                                         InstrumentedExecutorServiceFactory instrumentedExecutorServiceFactory,
                                         ConsumerAuthorizationHandler consumerAuthorizationHandler,
-                                        SubscriptionLoadReporter subscriptionLoadReporter) {
+                                        LoadLimiter loadLimiter) {
 
         this.configFactory = configFactory;
         this.hermesMetrics = hermesMetrics;
@@ -56,7 +56,7 @@ public class ConsumerMessageSenderFactory {
         this.undeliveredMessageLog = undeliveredMessageLog;
         this.clock = clock;
         this.consumerAuthorizationHandler = consumerAuthorizationHandler;
-        this.subscriptionLoadReporter = subscriptionLoadReporter;
+        this.loadLimiter = loadLimiter;
         this.rateLimiterReportingExecutor = instrumentedExecutorServiceFactory.getExecutorService(
                 "rate-limiter-reporter", configFactory.getIntProperty(CONSUMER_RATE_LIMITER_REPORTING_THREAD_POOL_SIZE),
                 configFactory.getBooleanProperty(Configs.CONSUMER_RATE_LIMITER_REPORTING_THREAD_POOL_MONITORING));
@@ -85,7 +85,7 @@ public class ConsumerMessageSenderFactory {
                 configFactory.getIntProperty(CONSUMER_SENDER_ASYNC_TIMEOUT_MS),
                 futureAsyncTimeout,
                 clock,
-                subscriptionLoadReporter
+                loadLimiter
         );
     }
 

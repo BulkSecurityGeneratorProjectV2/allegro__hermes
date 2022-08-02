@@ -6,13 +6,13 @@ import pl.allegro.tech.hermes.common.config.ConfigFactory;
 import pl.allegro.tech.hermes.common.kafka.KafkaNamesMapper;
 import pl.allegro.tech.hermes.common.message.wrapper.CompositeMessageContentWrapper;
 import pl.allegro.tech.hermes.common.metric.HermesMetrics;
-import pl.allegro.tech.hermes.consumers.consumer.load.SubscriptionLoadReporter;
+import pl.allegro.tech.hermes.consumers.consumer.load.LoadLimiter;
 import pl.allegro.tech.hermes.consumers.consumer.offset.ConsumerPartitionAssignmentState;
 import pl.allegro.tech.hermes.consumers.consumer.offset.OffsetQueue;
 import pl.allegro.tech.hermes.consumers.consumer.receiver.ReceiverFactory;
 import pl.allegro.tech.hermes.consumers.consumer.receiver.kafka.BasicMessageContentReaderFactory;
-import pl.allegro.tech.hermes.consumers.consumer.receiver.kafka.KafkaHeaderExtractor;
 import pl.allegro.tech.hermes.consumers.consumer.receiver.kafka.KafkaConsumerRecordToMessageConverterFactory;
+import pl.allegro.tech.hermes.consumers.consumer.receiver.kafka.KafkaHeaderExtractor;
 import pl.allegro.tech.hermes.consumers.consumer.receiver.kafka.KafkaMessageReceiverFactory;
 import pl.allegro.tech.hermes.consumers.consumer.receiver.kafka.MessageContentReaderFactory;
 import pl.allegro.tech.hermes.domain.filtering.chain.FilterChainFactory;
@@ -33,7 +33,7 @@ public class ConsumerReceiverConfiguration {
                                                        FilterChainFactory filterChainFactory,
                                                        Trackers trackers,
                                                        ConsumerPartitionAssignmentState consumerPartitionAssignmentState,
-                                                       SubscriptionLoadReporter subscriptionLoadReporter) {
+                                                       LoadLimiter loadLimiter) {
         return new KafkaMessageReceiverFactory(
                 configs,
                 messageConverterFactory,
@@ -43,7 +43,7 @@ public class ConsumerReceiverConfiguration {
                 filterChainFactory,
                 trackers,
                 consumerPartitionAssignmentState,
-                subscriptionLoadReporter
+                loadLimiter
         );
     }
 

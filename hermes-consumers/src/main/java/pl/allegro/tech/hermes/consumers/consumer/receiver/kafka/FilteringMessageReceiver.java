@@ -4,6 +4,7 @@ import pl.allegro.tech.hermes.api.Subscription;
 import pl.allegro.tech.hermes.common.kafka.offset.PartitionOffset;
 import pl.allegro.tech.hermes.consumers.consumer.Message;
 import pl.allegro.tech.hermes.consumers.consumer.filtering.FilteredMessageHandler;
+import pl.allegro.tech.hermes.consumers.consumer.load.LoadLimiter;
 import pl.allegro.tech.hermes.domain.filtering.chain.FilterChain;
 import pl.allegro.tech.hermes.domain.filtering.chain.FilterChainFactory;
 import pl.allegro.tech.hermes.domain.filtering.chain.FilterResult;
@@ -15,9 +16,10 @@ import java.util.Optional;
 import java.util.Set;
 
 public class FilteringMessageReceiver implements MessageReceiver {
-    private MessageReceiver receiver;
-    private FilteredMessageHandler filteredMessageHandler;
-    private FilterChainFactory filterChainFactory;
+    private final MessageReceiver receiver;
+    private final FilteredMessageHandler filteredMessageHandler;
+    private final FilterChainFactory filterChainFactory;
+    private final LoadLimiter loadLimiter;
 
     private volatile FilterChain filterChain;
     private Subscription subscription;
@@ -25,12 +27,14 @@ public class FilteringMessageReceiver implements MessageReceiver {
     public FilteringMessageReceiver(MessageReceiver receiver,
                                     FilteredMessageHandler filteredMessageHandler,
                                     FilterChainFactory filterChainFactory,
-                                    Subscription subscription) {
+                                    Subscription subscription,
+                                    LoadLimiter loadLimiter) {
         this.receiver = receiver;
         this.filteredMessageHandler = filteredMessageHandler;
         this.filterChainFactory = filterChainFactory;
         this.subscription = subscription;
         this.filterChain = filterChainFactory.create(subscription.getFilters());
+        this.loadLimiter = loadLimiter;
     }
 
     @Override
@@ -43,7 +47,11 @@ public class FilteringMessageReceiver implements MessageReceiver {
     private boolean allow(Message message) {
         FilterResult result = filterChain.apply(message);
         filteredMessageHandler.handle(result, message, subscription);
-        return !result.isFiltered();
+        if (result.isFiltered()) {
+//            loadLimiter.removeFromTimeQueue(message);
+            return false;
+        }
+        return true;
     }
 
     @Override

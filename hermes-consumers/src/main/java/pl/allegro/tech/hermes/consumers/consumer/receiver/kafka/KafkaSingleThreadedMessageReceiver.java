@@ -1,7 +1,6 @@
 package pl.allegro.tech.hermes.consumers.consumer.receiver.kafka;
 
 import com.google.common.collect.ImmutableList;
-import java.util.concurrent.BlockingQueue;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -19,23 +18,29 @@ import pl.allegro.tech.hermes.common.kafka.KafkaTopics;
 import pl.allegro.tech.hermes.common.kafka.offset.PartitionOffset;
 import pl.allegro.tech.hermes.common.metric.HermesMetrics;
 import pl.allegro.tech.hermes.consumers.consumer.Message;
-import pl.allegro.tech.hermes.consumers.consumer.load.SubscriptionLoadReporter;
+import pl.allegro.tech.hermes.consumers.consumer.load.LoadLimiter;
 import pl.allegro.tech.hermes.consumers.consumer.offset.ConsumerPartitionAssignmentState;
 import pl.allegro.tech.hermes.consumers.consumer.offset.OffsetCommitterConsumerRebalanceListener;
 import pl.allegro.tech.hermes.consumers.consumer.offset.SubscriptionPartitionOffset;
 import pl.allegro.tech.hermes.consumers.consumer.offset.kafka.broker.KafkaConsumerOffsetMover;
+import pl.allegro.tech.hermes.consumers.consumer.rate.ConsumerRateLimiter;
+import pl.allegro.tech.hermes.consumers.consumer.rate.calculator.OutputRateCalculator;
 import pl.allegro.tech.hermes.consumers.consumer.receiver.MessageReceiver;
+import pl.allegro.tech.hermes.consumers.consumer.receiver.RetryableReceiverError;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import pl.allegro.tech.hermes.consumers.consumer.receiver.RetryableReceiverError;
 
 public class KafkaSingleThreadedMessageReceiver implements MessageReceiver {
     private static final Logger logger = LoggerFactory.getLogger(KafkaSingleThreadedMessageReceiver.class);
@@ -47,10 +52,14 @@ public class KafkaSingleThreadedMessageReceiver implements MessageReceiver {
     private final KafkaConsumerOffsetMover offsetMover;
 
     private final HermesMetrics metrics;
-    private final SubscriptionLoadReporter subscriptionLoadReporter;
+    private final LoadLimiter loadLimiter;
     private volatile Subscription subscription;
 
+    private volatile Instant lastLagReport;
+    private final Clock clock = Clock.systemDefaultZone();
+
     private final int pollTimeout;
+    private final ConsumerRateLimiter rateLimiter;
     private final ConsumerPartitionAssignmentState partitionAssignmentState;
 
     public KafkaSingleThreadedMessageReceiver(KafkaConsumer<byte[], byte[]> consumer,
@@ -61,12 +70,14 @@ public class KafkaSingleThreadedMessageReceiver implements MessageReceiver {
                                               Subscription subscription,
                                               int pollTimeout,
                                               int readQueueCapacity,
-                                              SubscriptionLoadReporter subscriptionLoadReporter,
+                                              LoadLimiter loadLimiter,
+                                              ConsumerRateLimiter rateLimiter,
                                               ConsumerPartitionAssignmentState partitionAssignmentState) {
         this.metrics = metrics;
         this.subscription = subscription;
         this.pollTimeout = pollTimeout;
-        this.subscriptionLoadReporter = subscriptionLoadReporter;
+        this.loadLimiter = loadLimiter;
+        this.rateLimiter = rateLimiter;
         this.partitionAssignmentState = partitionAssignmentState;
         this.consumer = consumer;
         this.readQueue = new ArrayBlockingQueue<>(readQueueCapacity);
@@ -88,6 +99,16 @@ public class KafkaSingleThreadedMessageReceiver implements MessageReceiver {
     @Override
     public Optional<Message> next() {
         try {
+            Instant now = clock.instant();
+            if (lastLagReport == null || now.isAfter(lastLagReport.plus(Duration.ofMinutes(1)))) {
+                lastLagReport = now;
+                if (rateLimiter.getRateMode() == OutputRateCalculator.Mode.NORMAL) {
+                    Map<TopicPartition, Long> topicPartitionLongMap = reportLag();
+                    loadLimiter.reportLag(subscription.getQualifiedName(), topicPartitionLongMap);
+                } else {
+                    loadLimiter.reportLag(subscription.getQualifiedName(), Map.of());
+                }
+            }
             supplyReadQueue();
             return getMessageFromReadQueue();
         } catch (InterruptException ex) {
@@ -111,9 +132,9 @@ public class KafkaSingleThreadedMessageReceiver implements MessageReceiver {
     private void supplyReadQueue() {
         if (readQueue.isEmpty()) {
             ConsumerRecords<byte[], byte[]> records = consumer.poll(Duration.ofMillis(pollTimeout));
-            subscriptionLoadReporter.recordMessagesIn(subscription.getQualifiedName(), records.count());
             try {
                 for (ConsumerRecord<byte[], byte[]> record : records) {
+                    loadLimiter.acquire();
                     readQueue.add(record);
                 }
             } catch (Exception ex) {
@@ -131,6 +152,7 @@ public class KafkaSingleThreadedMessageReceiver implements MessageReceiver {
             ConsumerRecord<byte[], byte[]> record = readQueue.element();
             try {
                 Message message = convertToMessage(record);
+//                loadLimiter.addToTimeQueue(message);
                 readQueue.poll();
                 return Optional.of(message);
             } catch (RetryableReceiverError ex) {
@@ -149,6 +171,7 @@ public class KafkaSingleThreadedMessageReceiver implements MessageReceiver {
     @Override
     public void stop() {
         try {
+            loadLimiter.reportLag(subscription.getQualifiedName(), Map.of());
             consumer.close();
         } catch (IllegalStateException ex) {
             // means it was already closed
@@ -202,5 +225,25 @@ public class KafkaSingleThreadedMessageReceiver implements MessageReceiver {
     @Override
     public boolean moveOffset(PartitionOffset offset) {
         return offsetMover.move(offset);
+    }
+
+    private Map<TopicPartition, Long> reportLag() {
+        Set<TopicPartition> partitions = partitionAssignmentState.getPartitions(subscription.getQualifiedName());
+        Map<TopicPartition, Long> beginningOffsets = consumer.beginningOffsets(partitions);
+        Map<TopicPartition, Long> endOffsets = consumer.endOffsets(partitions);
+        Map<TopicPartition, OffsetAndMetadata> committedOffsets = consumer.committed(partitions);
+        Map<TopicPartition, Long> lags = new HashMap<>();
+        for (Map.Entry<TopicPartition, Long> e : endOffsets.entrySet()) {
+            TopicPartition topicPartition = e.getKey();
+            Long beginning = beginningOffsets.get(topicPartition);
+            Long end = e.getValue();
+            OffsetAndMetadata committed = committedOffsets.get(e.getKey());
+            if (beginning.equals(end)) {
+                lags.put(topicPartition, 0L);
+            } else if (committed != null) {
+                lags.put(topicPartition, end - committed.offset());
+            }
+        }
+        return lags;
     }
 }

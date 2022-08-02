@@ -30,11 +30,11 @@ import java.util.stream.StreamSupport;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
-public class DynamicWorkBalancer implements WorkBalancer {
+public class NegotiatedWorkBalancer implements WorkBalancer {
 
     private static final Logger logger = LoggerFactory.getLogger(DynamicWorkBalancer.class);
 
-    private final WorkloadMetricsRegistry workloadMetricsRegistry;
+    private final NegotiatedWorkloadMetricsRegistry workloadMetricsRegistry;
     private final int initialConsumersPerSubscriptions;
     private final int maxSubscriptionsPerConsumer;
     private final Clock clock;
@@ -44,12 +44,12 @@ public class DynamicWorkBalancer implements WorkBalancer {
 
     private Instant lastRebalance;
 
-    public DynamicWorkBalancer(WorkloadMetricsRegistry workloadMetricsRegistry,
-                               int initialConsumersPerSubscriptions,
-                               int maxSubscriptionsPerConsumer,
-                               Clock clock,
-                               Duration balanceDelay,
-                               PartitionCountProvider partitionCountProvider) {
+    public NegotiatedWorkBalancer(NegotiatedWorkloadMetricsRegistry workloadMetricsRegistry,
+                                  int initialConsumersPerSubscriptions,
+                                  int maxSubscriptionsPerConsumer,
+                                  Clock clock,
+                                  Duration balanceDelay,
+                                  PartitionCountProvider partitionCountProvider) {
         this.workloadMetricsRegistry = workloadMetricsRegistry;
         this.initialConsumersPerSubscriptions = initialConsumersPerSubscriptions;
         this.maxSubscriptionsPerConsumer = maxSubscriptionsPerConsumer;
@@ -64,63 +64,66 @@ public class DynamicWorkBalancer implements WorkBalancer {
                                        List<String> activeConsumerNodes,
                                        SubscriptionAssignmentView currentState,
                                        WorkloadConstraints constraints) {
-        if (lastRebalance == null) {
-            lastRebalance = clock.instant();
-        }
 
-        Set<ConsumerLoad> consumerLoads = new HashSet<>();
-        Map<SubscriptionName, LoadStatusVotes> currentVotes = new HashMap<>();
-        for (String consumerId : activeConsumerNodes) {
-            ConsumerLoad consumerLoad = new ConsumerLoad(consumerId);
-            consumerLoads.add(consumerLoad);
-            WorkloadMetricsSnapshot workloadMetricsSnapshot = workloadMetricsRegistry.get(consumerId);
-            if (workloadMetricsSnapshot.isDefined() && isValid(consumerId)) {
-                for (Map.Entry<SubscriptionName, SubscriptionLoad> loadStatus : workloadMetricsSnapshot.getLoads().entrySet()) {
-                    if (isValid(loadStatus.getKey())) {
-                        LoadStatusVotes loadStatusVotes = currentVotes.computeIfAbsent(loadStatus.getKey(), subscriptionName -> new LoadStatusVotes());
-                        loadStatusVotes.increment(loadStatus.getValue().getLoadStatus());
-                        consumerLoad.assign(loadStatus.getKey(), loadStatus.getValue().getThroughput());
-                    }
-                }
-            }
-        }
 
-        Map<SubscriptionName, Integer> consumerTasks = new HashMap<>();
-        for (SubscriptionName subscriptionName : subscriptions) {
-            int assignmentsCount = currentState.getAssignmentsCount(subscriptionName);
-            Optional<Integer> overwrittenConsumerCount = constraints.getOverwrittenConsumerCount(subscriptionName);
-            LoadStatusVotes loadStatusVotes = currentVotes.get(subscriptionName);
-            if (overwrittenConsumerCount.isPresent()) {
-                consumerTasks.put(subscriptionName, Math.min(overwrittenConsumerCount.get(), activeConsumerNodes.size()));
-            } else if (assignmentsCount == 0) {
-                consumerTasks.put(subscriptionName, initialConsumersPerSubscriptions);
-            } else if (loadStatusVotes == null) {
-                consumerTasks.put(subscriptionName, assignmentsCount);
-            } else if (loadStatusVotes.atLeastOneOverloaded()) {
-                int maxConsumersForTopic = partitionCountProvider.provide(subscriptionName.getTopicName()).orElse(assignmentsCount);
-                int maxConsumers = Math.min(activeConsumerNodes.size(), maxConsumersForTopic);
-                consumerTasks.put(subscriptionName, Math.min(++assignmentsCount, maxConsumers));
-            } else if (loadStatusVotes.allAgreeThatUnderloaded(assignmentsCount)) {
-                consumerTasks.put(subscriptionName, Math.max(1, --assignmentsCount));
-            } else {
-                consumerTasks.put(subscriptionName, assignmentsCount);
-            }
-        }
 
-        SubscriptionAssignmentView balancedState = currentState.transform((state, transformer) -> {
-            findRemovedSubscriptions(currentState, subscriptions).forEach(transformer::removeSubscription);
-            findInactiveConsumers(currentState, activeConsumerNodes).forEach(transformer::removeConsumerNode);
-            findNewSubscriptions(currentState, subscriptions).forEach(transformer::addSubscription);
-            findNewConsumers(currentState, activeConsumerNodes).forEach(transformer::addConsumerNode);
-            minimizeWorkload(state, transformer, consumerTasks);
-            availableWorkStream(state, consumerTasks)
-                    .forEach(transformer::addAssignment);
-//            if (isValid(consumerLoads, state)) {
-//                equalizeWorkload(consumerLoads, transformer);
+//        if (lastRebalance == null) {
+//            lastRebalance = clock.instant();
+//        }
+//
+//        Set<ConsumerLoad> consumerLoads = new HashSet<>();
+//        Map<SubscriptionName, LoadStatusVotes> currentVotes = new HashMap<>();
+//        for (String consumerId : activeConsumerNodes) {
+//            ConsumerLoad consumerLoad = new ConsumerLoad(consumerId);
+//            consumerLoads.add(consumerLoad);
+//            WorkloadMetricsSnapshot workloadMetricsSnapshot = workloadMetricsRegistry.get(consumerId);
+//            if (workloadMetricsSnapshot.isDefined() && isValid(consumerId)) {
+//                for (Map.Entry<SubscriptionName, SubscriptionLoad> loadStatus : workloadMetricsSnapshot.getLoads().entrySet()) {
+//                    if (isValid(loadStatus.getKey())) {
+//                        LoadStatusVotes loadStatusVotes = currentVotes.computeIfAbsent(loadStatus.getKey(), subscriptionName -> new LoadStatusVotes());
+//                        loadStatusVotes.increment(loadStatus.getValue().getLoadStatus());
+//                        consumerLoad.assign(loadStatus.getKey(), loadStatus.getValue().getThroughput());
+//                    }
+//                }
 //            }
-        });
+//        }
+//
+//        Map<SubscriptionName, Integer> consumerTasks = new HashMap<>();
+//        for (SubscriptionName subscriptionName : subscriptions) {
+//            int assignmentsCount = currentState.getAssignmentsCount(subscriptionName);
+//            Optional<Integer> overwrittenConsumerCount = constraints.getOverwrittenConsumerCount(subscriptionName);
+//            LoadStatusVotes loadStatusVotes = currentVotes.get(subscriptionName);
+//            if (overwrittenConsumerCount.isPresent()) {
+//                consumerTasks.put(subscriptionName, Math.min(overwrittenConsumerCount.get(), activeConsumerNodes.size()));
+//            } else if (assignmentsCount == 0) {
+//                consumerTasks.put(subscriptionName, initialConsumersPerSubscriptions);
+//            } else if (loadStatusVotes == null) {
+//                consumerTasks.put(subscriptionName, assignmentsCount);
+//            } else if (loadStatusVotes.atLeastOneOverloaded()) {
+//                int maxConsumersForTopic = partitionCountProvider.provide(subscriptionName.getTopicName()).orElse(assignmentsCount);
+//                int maxConsumers = Math.min(activeConsumerNodes.size(), maxConsumersForTopic);
+//                consumerTasks.put(subscriptionName, Math.min(++assignmentsCount, maxConsumers));
+//            } else if (loadStatusVotes.allAgreeThatUnderloaded(assignmentsCount)) {
+//                consumerTasks.put(subscriptionName, Math.max(1, --assignmentsCount));
+//            } else {
+//                consumerTasks.put(subscriptionName, assignmentsCount);
+//            }
+//        }
+//
+//        SubscriptionAssignmentView balancedState = currentState.transform((state, transformer) -> {
+//            findRemovedSubscriptions(currentState, subscriptions).forEach(transformer::removeSubscription);
+//            findInactiveConsumers(currentState, activeConsumerNodes).forEach(transformer::removeConsumerNode);
+//            findNewSubscriptions(currentState, subscriptions).forEach(transformer::addSubscription);
+//            findNewConsumers(currentState, activeConsumerNodes).forEach(transformer::addConsumerNode);
+//            //minimizeWorkload(state, transformer, consumerTasks);
+//            availableWorkStream(state, consumerTasks)
+//                    .forEach(transformer::addAssignment);
+////            if (isValid(consumerLoads, state)) {
+////                equalizeWorkload(consumerLoads, transformer);
+////            }
+//        });
 
-        return new WorkBalancingResult(balancedState, 0);
+        return null;
     }
 
     private boolean isValid(Set<ConsumerLoad> consumerLoads, SubscriptionAssignmentView state) {

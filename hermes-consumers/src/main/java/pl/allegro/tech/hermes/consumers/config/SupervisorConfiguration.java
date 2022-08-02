@@ -17,7 +17,7 @@ import pl.allegro.tech.hermes.consumers.consumer.ConsumerAuthorizationHandler;
 import pl.allegro.tech.hermes.consumers.consumer.ConsumerMessageSenderFactory;
 import pl.allegro.tech.hermes.consumers.consumer.batch.MessageBatchFactory;
 import pl.allegro.tech.hermes.consumers.consumer.converter.MessageConverterResolver;
-import pl.allegro.tech.hermes.consumers.consumer.load.SubscriptionLoadReporter;
+import pl.allegro.tech.hermes.consumers.consumer.load.LoadLimiter;
 import pl.allegro.tech.hermes.consumers.consumer.offset.ConsumerPartitionAssignmentState;
 import pl.allegro.tech.hermes.consumers.consumer.offset.OffsetQueue;
 import pl.allegro.tech.hermes.consumers.consumer.rate.ConsumerRateLimitSupervisor;
@@ -42,9 +42,14 @@ import pl.allegro.tech.hermes.consumers.supervisor.workload.WorkBalancer;
 import pl.allegro.tech.hermes.consumers.supervisor.workload.WorkloadSupervisor;
 import pl.allegro.tech.hermes.consumers.supervisor.workload.dynamic.DynamicWorkBalancer;
 import pl.allegro.tech.hermes.consumers.supervisor.workload.dynamic.KafkaPartitionCountProvider;
+import pl.allegro.tech.hermes.consumers.supervisor.workload.dynamic.NegotiatedLoadLimiter;
+import pl.allegro.tech.hermes.consumers.supervisor.workload.dynamic.NegotiatedWorkBalancer;
+import pl.allegro.tech.hermes.consumers.supervisor.workload.dynamic.NegotiatedWorkloadMetricsRegistry;
 import pl.allegro.tech.hermes.consumers.supervisor.workload.dynamic.WorkloadMetricsRegistry;
 import pl.allegro.tech.hermes.consumers.supervisor.workload.dynamic.WorkloadMetricsReporter;
+import pl.allegro.tech.hermes.consumers.supervisor.workload.dynamic.ZookeeperNegotiatedWorkloadMetricsRegistry;
 import pl.allegro.tech.hermes.consumers.supervisor.workload.dynamic.ZookeeperWorkloadMetricsRegistry;
+import pl.allegro.tech.hermes.consumers.supervisor.workload.fixed.FixedWorkBalancer;
 import pl.allegro.tech.hermes.domain.notifications.InternalNotificationsBus;
 import pl.allegro.tech.hermes.domain.subscription.SubscriptionRepository;
 import pl.allegro.tech.hermes.domain.topic.TopicRepository;
@@ -117,36 +122,37 @@ public class SupervisorConfiguration {
 
     @Bean
     public WorkBalancer workBalancer(WorkloadMetricsRegistry workloadMetricsRegistry,
+                                     NegotiatedWorkloadMetricsRegistry negotiatedWorkloadMetricsRegistry,
                                      Clock clock,
                                      ConfigFactory configFactory,
                                      KafkaNamesMapper kafkaNamesMapper,
                                      TopicRepository topicRepository) {
-//        return new FixedWorkBalancer(
-//                configFactory.getIntProperty(CONSUMER_WORKLOAD_CONSUMERS_PER_SUBSCRIPTION),
-//                configFactory.getIntProperty(CONSUMER_WORKLOAD_MAX_SUBSCRIPTIONS_PER_CONSUMER)
-//        );
-        Properties props = new Properties();
-        props.put(BOOTSTRAP_SERVERS_CONFIG, configFactory.getStringProperty(KAFKA_BROKER_LIST));
-        props.put(SECURITY_PROTOCOL_CONFIG, DEFAULT_SECURITY_PROTOCOL);
-        props.put(REQUEST_TIMEOUT_MS_CONFIG, configFactory.getIntProperty(KAFKA_ADMIN_REQUEST_TIMEOUT_MS));
-        if (configFactory.getBooleanProperty(KAFKA_AUTHORIZATION_ENABLED)) {
-            props.put(SASL_MECHANISM, configFactory.getStringProperty(KAFKA_AUTHORIZATION_MECHANISM));
-            props.put(SECURITY_PROTOCOL_CONFIG, configFactory.getStringProperty(KAFKA_AUTHORIZATION_PROTOCOL));
-            props.put(SASL_JAAS_CONFIG,
-                    "org.apache.kafka.common.security.plain.PlainLoginModule required\n"
-                            + "username=\"" + configFactory.getStringProperty(KAFKA_AUTHORIZATION_USERNAME) + "\"\n"
-                            + "password=\"" + configFactory.getStringProperty(KAFKA_AUTHORIZATION_PASSWORD) + "\";"
-            );
-        }
-        AdminClient adminClient = AdminClient.create(props);
-        return new DynamicWorkBalancer(
-                workloadMetricsRegistry,
+        return new FixedWorkBalancer(
                 configFactory.getIntProperty(CONSUMER_WORKLOAD_CONSUMERS_PER_SUBSCRIPTION),
-                configFactory.getIntProperty(CONSUMER_WORKLOAD_MAX_SUBSCRIPTIONS_PER_CONSUMER),
-                clock,
-                Duration.ofMinutes(5),
-                new KafkaPartitionCountProvider(kafkaNamesMapper, topicRepository, adminClient, Duration.ofMinutes(60))
+                configFactory.getIntProperty(CONSUMER_WORKLOAD_MAX_SUBSCRIPTIONS_PER_CONSUMER)
         );
+//        Properties props = new Properties();
+//        props.put(BOOTSTRAP_SERVERS_CONFIG, configFactory.getStringProperty(KAFKA_BROKER_LIST));
+//        props.put(SECURITY_PROTOCOL_CONFIG, DEFAULT_SECURITY_PROTOCOL);
+//        props.put(REQUEST_TIMEOUT_MS_CONFIG, configFactory.getIntProperty(KAFKA_ADMIN_REQUEST_TIMEOUT_MS));
+//        if (configFactory.getBooleanProperty(KAFKA_AUTHORIZATION_ENABLED)) {
+//            props.put(SASL_MECHANISM, configFactory.getStringProperty(KAFKA_AUTHORIZATION_MECHANISM));
+//            props.put(SECURITY_PROTOCOL_CONFIG, configFactory.getStringProperty(KAFKA_AUTHORIZATION_PROTOCOL));
+//            props.put(SASL_JAAS_CONFIG,
+//                    "org.apache.kafka.common.security.plain.PlainLoginModule required\n"
+//                            + "username=\"" + configFactory.getStringProperty(KAFKA_AUTHORIZATION_USERNAME) + "\"\n"
+//                            + "password=\"" + configFactory.getStringProperty(KAFKA_AUTHORIZATION_PASSWORD) + "\";"
+//            );
+//        }
+//        AdminClient adminClient = AdminClient.create(props);
+//        return new NegotiatedWorkBalancer(
+//                negotiatedWorkloadMetricsRegistry,
+//                configFactory.getIntProperty(CONSUMER_WORKLOAD_CONSUMERS_PER_SUBSCRIPTION),
+//                configFactory.getIntProperty(CONSUMER_WORKLOAD_MAX_SUBSCRIPTIONS_PER_CONSUMER),
+//                clock,
+//                Duration.ofMinutes(5),
+//                new KafkaPartitionCountProvider(kafkaNamesMapper, topicRepository, adminClient, Duration.ofMinutes(60))
+//        );
     }
 
     @Bean
@@ -171,7 +177,7 @@ public class SupervisorConfiguration {
                                            MessageBatchSenderFactory batchSenderFactory,
                                            ConsumerAuthorizationHandler consumerAuthorizationHandler,
                                            Clock clock,
-                                           SubscriptionLoadReporter subscriptionLoadReporter) {
+                                           LoadLimiter loadLimiter) {
         return new ConsumerFactory(
                 messageReceiverFactory,
                 hermesMetrics,
@@ -188,7 +194,7 @@ public class SupervisorConfiguration {
                 batchSenderFactory,
                 consumerAuthorizationHandler,
                 clock,
-                subscriptionLoadReporter
+                loadLimiter
         );
     }
 
@@ -268,10 +274,28 @@ public class SupervisorConfiguration {
         return new ZookeeperWorkloadMetricsRegistry(curator, subscriptionIds, zookeeperPaths, consumerId, clusterName, 100_000);
     }
 
-    @Bean(initMethod = "start", destroyMethod = "stop")
+    @Bean
+    // (initMethod = "start", destroyMethod = "stop")
     public WorkloadMetricsReporter workloadMetricsReporter(ConsumerAssignmentCache consumerAssignmentCache,
                                                            WorkloadMetricsRegistry workloadMetricsRegistry,
                                                            Clock clock) {
         return new WorkloadMetricsReporter(Duration.ofMinutes(1), Duration.ofMinutes(10), clock, consumerAssignmentCache, workloadMetricsRegistry);
     }
+
+    @Bean(initMethod = "start", destroyMethod = "stop")
+    public NegotiatedLoadLimiter negotiatedLoadLimiter(HermesMetrics hermesMetrics,
+                                                       NegotiatedWorkloadMetricsRegistry workloadMetricsRegistry) {
+        return new NegotiatedLoadLimiter(1.5, Duration.ofMinutes(1), hermesMetrics, workloadMetricsRegistry);
+    }
+
+    @Bean
+    public NegotiatedWorkloadMetricsRegistry negotiatedWorkloadMetricsRegistry(CuratorFramework curator,
+                                                                               SubscriptionIds subscriptionIds,
+                                                                               ZookeeperPaths zookeeperPaths,
+                                                                               ConfigFactory configFactory) {
+        String consumerId = configFactory.getStringProperty(Configs.CONSUMER_WORKLOAD_NODE_ID);
+        String clusterName = configFactory.getStringProperty(Configs.KAFKA_CLUSTER_NAME);
+        return new ZookeeperNegotiatedWorkloadMetricsRegistry(curator, subscriptionIds, zookeeperPaths, consumerId, clusterName, 100_000);
+    }
+
 }

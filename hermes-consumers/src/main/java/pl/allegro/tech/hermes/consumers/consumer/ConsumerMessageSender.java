@@ -7,7 +7,7 @@ import org.slf4j.LoggerFactory;
 import pl.allegro.tech.hermes.api.Subscription;
 import pl.allegro.tech.hermes.common.metric.HermesMetrics;
 import pl.allegro.tech.hermes.common.metric.timer.ConsumerLatencyTimer;
-import pl.allegro.tech.hermes.consumers.consumer.load.SubscriptionLoadReporter;
+import pl.allegro.tech.hermes.consumers.consumer.load.LoadLimiter;
 import pl.allegro.tech.hermes.consumers.consumer.rate.InflightsPool;
 import pl.allegro.tech.hermes.consumers.consumer.rate.SerialConsumerRateLimiter;
 import pl.allegro.tech.hermes.consumers.consumer.result.ErrorHandler;
@@ -46,7 +46,7 @@ public class ConsumerMessageSender {
     private final FutureAsyncTimeout<MessageSendingResult> async;
     private final int asyncTimeoutMs;
     private final HermesMetrics hermesMetrics;
-    private final SubscriptionLoadReporter subscriptionLoadReporter;
+    private final LoadLimiter loadLimiter;
 
     private int requestTimeoutMs;
     private ConsumerLatencyTimer consumerLatencyTimer;
@@ -67,14 +67,14 @@ public class ConsumerMessageSender {
                                  int asyncTimeoutMs,
                                  FutureAsyncTimeout<MessageSendingResult> futureAsyncTimeout,
                                  Clock clock,
-                                 SubscriptionLoadReporter subscriptionLoadReporter) {
+                                 LoadLimiter loadLimiter) {
         this.deliveryReportingExecutor = deliveryReportingExecutor;
         this.successHandlers = successHandlers;
         this.errorHandlers = errorHandlers;
         this.rateLimiter = rateLimiter;
         this.messageSenderFactory = messageSenderFactory;
         this.clock = clock;
-        this.subscriptionLoadReporter = subscriptionLoadReporter;
+        this.loadLimiter = loadLimiter;
         this.messageSender = messageSenderFactory.create(subscription);
         this.subscription = subscription;
         this.inflight = inflight;
@@ -129,7 +129,7 @@ public class ConsumerMessageSender {
      */
     private void sendMessage(final Message message) {
         rateLimiter.acquire();
-        subscriptionLoadReporter.recordMessagesOut(subscription.getQualifiedName(), 1);
+        loadLimiter.acquire();
         ConsumerLatencyTimer.Context timer = consumerLatencyTimer.time();
         CompletableFuture<MessageSendingResult> response = async.within(
                 messageSender.send(message),
@@ -216,6 +216,7 @@ public class ConsumerMessageSender {
         if (result.isLoggable()) {
             result.getLogInfo().forEach(logInfo -> logResultInfo(message, logInfo));
         }
+//        loadLimiter.addToTimeQueue(message);
         sendMessage(message);
     }
 
@@ -272,6 +273,7 @@ public class ConsumerMessageSender {
         @Override
         public void accept(MessageSendingResult result) {
             timer.stop();
+//            loadLimiter.removeFromTimeQueue(message);
             if (running) {
                 if (result.succeeded()) {
                     handleMessageSendingSuccess(message, result);

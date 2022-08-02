@@ -9,6 +9,7 @@ import pl.allegro.tech.hermes.common.config.Configs;
 import pl.allegro.tech.hermes.common.kafka.offset.PartitionOffset;
 import pl.allegro.tech.hermes.common.metric.HermesMetrics;
 import pl.allegro.tech.hermes.consumers.consumer.converter.MessageConverterResolver;
+import pl.allegro.tech.hermes.consumers.consumer.load.LoadLimiter;
 import pl.allegro.tech.hermes.consumers.consumer.load.LoadStatus;
 import pl.allegro.tech.hermes.consumers.consumer.load.SubscriptionLoadReporter;
 import pl.allegro.tech.hermes.consumers.consumer.offset.OffsetQueue;
@@ -42,12 +43,12 @@ public class SerialConsumer implements Consumer {
     private final SerialConsumerRateLimiter rateLimiter;
     private final Trackers trackers;
     private final MessageConverterResolver messageConverterResolver;
-    private final SubscriptionLoadReporter subscriptionLoadReporter;
     private final ConsumerMessageSender sender;
     private final ConfigFactory configFactory;
     private final OffsetQueue offsetQueue;
     private final ConsumerAuthorizationHandler consumerAuthorizationHandler;
     private final AdjustableSemaphore inflightSemaphore;
+    private final LoadLimiter loadLimiter;
 
     private final int defaultInflight;
     private final int signalProcessingInterval;
@@ -68,7 +69,7 @@ public class SerialConsumer implements Consumer {
                           ConfigFactory configFactory,
                           OffsetQueue offsetQueue,
                           ConsumerAuthorizationHandler consumerAuthorizationHandler,
-                          SubscriptionLoadReporter subscriptionLoadReporter) {
+                          LoadLimiter loadLimiter) {
         this.defaultInflight = configFactory.getIntProperty(CONSUMER_INFLIGHT_SIZE);
         this.signalProcessingInterval = configFactory.getIntProperty(CONSUMER_SIGNAL_PROCESSING_INTERVAL);
         this.inflightSemaphore = new AdjustableSemaphore(calculateInflightSize(subscription));
@@ -81,7 +82,7 @@ public class SerialConsumer implements Consumer {
         this.consumerAuthorizationHandler = consumerAuthorizationHandler;
         this.trackers = trackers;
         this.messageConverterResolver = messageConverterResolver;
-        this.subscriptionLoadReporter = subscriptionLoadReporter;
+        this.loadLimiter = loadLimiter;
         this.messageReceiver = new UninitializedMessageReceiver();
         this.topic = topic;
         this.sender = consumerMessageSenderFactory.create(subscription, rateLimiter, offsetQueue, inflightSemaphore::release);
@@ -97,8 +98,8 @@ public class SerialConsumer implements Consumer {
     @Override
     public void consume(Runnable signalsInterrupt) {
         try {
-            subscriptionLoadReporter.recordStatus(subscription.getQualifiedName(), calculateLoadStatus());
             do {
+                loadLimiter.acquire();
                 signalsInterrupt.run();
             } while (!inflightSemaphore.tryAcquire(signalProcessingInterval, TimeUnit.MILLISECONDS));
 

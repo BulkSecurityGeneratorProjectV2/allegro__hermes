@@ -218,6 +218,15 @@ public class HermesMetrics {
         return metricRegistry.histogram(pathCompiler.compile(Histograms.GLOBAL_MESSAGE_SIZE));
     }
 
+    public Histogram sleepHistogram() {
+        return metricRegistry.histogram(pathCompiler.compile("consumers-workload.sleep"));
+    }
+
+    public Histogram timeHistogram() {
+        return metricRegistry.histogram(pathCompiler.compile("consumers-workload.processing-time"));
+    }
+
+
     public Histogram messageContentSizeHistogram(TopicName topic) {
         return metricRegistry.histogram(pathCompiler.compile(Histograms.MESSAGE_SIZE, pathContext()
                 .withGroup(escapeDots(topic.getGroupName()))
