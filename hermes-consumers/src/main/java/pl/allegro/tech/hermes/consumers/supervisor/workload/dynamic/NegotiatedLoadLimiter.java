@@ -1,6 +1,7 @@
 package pl.allegro.tech.hermes.consumers.supervisor.workload.dynamic;
 
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.sun.management.OperatingSystemMXBean;
@@ -46,6 +47,7 @@ public class NegotiatedLoadLimiter implements LoadLimiter {
     private final Map<SubscriptionName, Long> lags = new ConcurrentHashMap<>();
     private final Map<String, Long> timestamps = new ConcurrentHashMap<>();
     private final LongAdder processingQueueSize = new LongAdder();
+    private final Meter rate;
 
     public NegotiatedLoadLimiter(double cpuLimit,
                                  Duration limitsAdjustingInterval,
@@ -59,7 +61,7 @@ public class NegotiatedLoadLimiter implements LoadLimiter {
         this.executor = Executors.newSingleThreadScheduledExecutor(
                 new ThreadFactoryBuilder().setNameFormat("workload-limits-adjuster-%d").build()
         );
-        hermesMetrics.registerGauge("consumers-workload.limit", (Gauge<Double>) rateLimiter::getRate);
+//        hermesMetrics.registerGauge("consumers-workload.limit", (Gauge<Double>) rateLimiter::getRate);
         hermesMetrics.registerGauge("consumers-workload.queue", (Gauge<Long>) processingQueueSize::sum);
         hermesMetrics.registerGauge("consumers-workload.time-queue", (Gauge<Integer>) timestamps::size);
         hermesMetrics.registerGauge("consumers-workload.timer", new Gauge<Long>() {
@@ -82,6 +84,7 @@ public class NegotiatedLoadLimiter implements LoadLimiter {
                 return sum;
             }
         });
+        rate = hermesMetrics.meter("consumers-workload.limit");
     }
 
     public void start() {
@@ -107,9 +110,9 @@ public class NegotiatedLoadLimiter implements LoadLimiter {
     }
 
     private void acquire(int count) {
-        double acquire = rateLimiter.acquire(count);
-        double ms = acquire * 1000;
-        hermesMetrics.sleepHistogram().update((long) ms);
+//        double acquire = rateLimiter.acquire(count);
+//        double ms = acquire * 1000;
+//        hermesMetrics.sleepHistogram().update((long) ms);
     }
 
     @Override
@@ -163,9 +166,10 @@ public class NegotiatedLoadLimiter implements LoadLimiter {
 
     @Override
     public void acquire() {
-        double acquire = rateLimiter.acquire();
-        double ms = acquire * 1000;
-        hermesMetrics.sleepHistogram().update((long) ms);
+        rate.mark();
+        //        double acquire = rateLimiter.acquire();
+//        double ms = acquire * 1000;
+//        hermesMetrics.sleepHistogram().update((long) ms);
     }
 
     private MessagesCounter getMessageCounter(SubscriptionName subscriptionName) {
