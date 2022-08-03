@@ -76,7 +76,7 @@ public class MessageBatchReceiver {
         List<MessageMetadata> discarded = new ArrayList<>();
 
         while (isReceiving() && !batch.isReadyForDelivery() && !Thread.currentThread().isInterrupted()) {
-            loadLimiter.acquire();
+            loadLimiter.acquire("batch-receiver");
             signalsInterrupt.run();
             Optional<Message> maybeMessage = inflight.isEmpty() ?
                     readAndTransform(subscription, batch.getId()) : Optional.ofNullable(inflight.poll());

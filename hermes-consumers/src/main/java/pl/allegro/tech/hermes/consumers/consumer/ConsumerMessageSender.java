@@ -129,7 +129,7 @@ public class ConsumerMessageSender {
      */
     private void sendMessage(final Message message) {
         rateLimiter.acquire();
-        loadLimiter.acquire();
+        loadLimiter.acquire("serial-send");
         ConsumerLatencyTimer.Context timer = consumerLatencyTimer.time();
         CompletableFuture<MessageSendingResult> response = async.within(
                 messageSender.send(message),

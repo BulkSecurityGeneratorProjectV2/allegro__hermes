@@ -71,7 +71,7 @@ public class NoOpSubscriptionLoadReporter implements SubscriptionLoadReporter, L
     }
 
     @Override
-    public void acquire() {
+    public void acquire(String operation) {
 
     }
 }

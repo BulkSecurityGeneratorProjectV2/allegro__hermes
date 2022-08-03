@@ -218,7 +218,7 @@ public class BatchConsumer implements Consumer {
         try (Timer.Context timer = hermesMetrics.subscriptionLatencyTimer(subscription).time()) {
             retryer.call(() -> {
                 signalsInterrupt.run();
-                loadLimiter.acquire();
+                loadLimiter.acquire("batch-deliver");
                 return sender.send(
                         batch,
                         subscription.getEndpoint(),

@@ -47,7 +47,6 @@ public class NegotiatedLoadLimiter implements LoadLimiter {
     private final Map<SubscriptionName, Long> lags = new ConcurrentHashMap<>();
     private final Map<String, Long> timestamps = new ConcurrentHashMap<>();
     private final LongAdder processingQueueSize = new LongAdder();
-    private final Meter rate;
 
     public NegotiatedLoadLimiter(double cpuLimit,
                                  Duration limitsAdjustingInterval,
@@ -84,7 +83,7 @@ public class NegotiatedLoadLimiter implements LoadLimiter {
                 return sum;
             }
         });
-        rate = hermesMetrics.meter("consumers-workload.limit");
+//        rate = hermesMetrics.meter("consumers-workload.limit");
     }
 
     public void start() {
@@ -165,8 +164,8 @@ public class NegotiatedLoadLimiter implements LoadLimiter {
     }
 
     @Override
-    public void acquire() {
-        rate.mark();
+    public void acquire(String operation) {
+        hermesMetrics.meter("consumers-workload.rate." + operation).mark();
         //        double acquire = rateLimiter.acquire();
 //        double ms = acquire * 1000;
 //        hermesMetrics.sleepHistogram().update((long) ms);

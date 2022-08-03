@@ -134,7 +134,7 @@ public class KafkaSingleThreadedMessageReceiver implements MessageReceiver {
             ConsumerRecords<byte[], byte[]> records = consumer.poll(Duration.ofMillis(pollTimeout));
             try {
                 for (ConsumerRecord<byte[], byte[]> record : records) {
-                    loadLimiter.acquire();
+                    loadLimiter.acquire("receiver");
                     readQueue.add(record);
                 }
             } catch (Exception ex) {

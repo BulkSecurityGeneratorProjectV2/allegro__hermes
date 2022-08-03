@@ -99,7 +99,7 @@ public class SerialConsumer implements Consumer {
     public void consume(Runnable signalsInterrupt) {
         try {
             do {
-                loadLimiter.acquire();
+                loadLimiter.acquire("serial-consume");
                 signalsInterrupt.run();
             } while (!inflightSemaphore.tryAcquire(signalProcessingInterval, TimeUnit.MILLISECONDS));
 

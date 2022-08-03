@@ -27,5 +27,5 @@ public interface LoadLimiter {
 
     void removeFromTimeQueue(MessageBatch batch);
 
-    void acquire();
+    void acquire(String operation);
 }
