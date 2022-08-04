@@ -88,7 +88,7 @@ public class ConsumerMessageSender {
     public void initialize() {
         running = true;
         ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat(subscription.getQualifiedName() + "-retry-executor-%d").build();
-        this.retrySingleThreadExecutor = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors(), threadFactory);
+        this.retrySingleThreadExecutor = Executors.newScheduledThreadPool(1, threadFactory);
     }
 
     public void shutdown() {
@@ -273,7 +273,7 @@ public class ConsumerMessageSender {
         @Override
         public void accept(MessageSendingResult result) {
             timer.stop();
-//            loadLimiter.removeFromTimeQueue(message);
+            loadLimiter.acquire("serial-response");
             if (running) {
                 if (result.succeeded()) {
                     handleMessageSendingSuccess(message, result);

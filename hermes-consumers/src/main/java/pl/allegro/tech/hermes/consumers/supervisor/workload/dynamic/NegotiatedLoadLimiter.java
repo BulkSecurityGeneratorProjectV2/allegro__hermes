@@ -165,6 +165,7 @@ public class NegotiatedLoadLimiter implements LoadLimiter {
 
     @Override
     public void acquire(String operation) {
+        hermesMetrics.meter("consumers-workload.rate").mark();
         hermesMetrics.meter("consumers-workload.rate." + operation).mark();
         //        double acquire = rateLimiter.acquire();
 //        double ms = acquire * 1000;
