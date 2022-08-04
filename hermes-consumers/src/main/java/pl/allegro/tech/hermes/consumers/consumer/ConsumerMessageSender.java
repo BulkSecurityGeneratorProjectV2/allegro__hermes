@@ -88,7 +88,7 @@ public class ConsumerMessageSender {
     public void initialize() {
         running = true;
         ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat(subscription.getQualifiedName() + "-retry-executor-%d").build();
-        this.retrySingleThreadExecutor = Executors.newScheduledThreadPool(1, threadFactory);
+        this.retrySingleThreadExecutor = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors(), threadFactory);
     }
 
     public void shutdown() {
