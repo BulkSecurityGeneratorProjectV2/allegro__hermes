@@ -119,7 +119,8 @@ public class SupervisorConfiguration {
     @Bean
     public WorkBalancer workBalancer(WorkloadProperties workloadProperties,
                                      Clock clock,
-                                     SubscriptionProfileProvider subscriptionProfileProvider) {
+                                     SubscriptionProfileProvider subscriptionProfileProvider,
+                                     HermesMetrics metrics) {
         switch (workloadProperties.getWorkBalancingStrategy()) {
             case SELECTIVE:
                 return new SelectiveWorkBalancer();
@@ -129,7 +130,8 @@ public class SupervisorConfiguration {
                         clock,
                         weightedWorkBalancingProperties.getStabilizationWindowSize(),
                         weightedWorkBalancingProperties.getMinSignificantChangePercent(),
-                        subscriptionProfileProvider
+                        subscriptionProfileProvider,
+                        metrics
                 );
         }
         throw new UnknownWorkBalancingStrategyException();
