@@ -1,8 +1,10 @@
 package pl.allegro.tech.hermes.consumers.supervisor.workload.weighted;
 
+import com.codahale.metrics.Gauge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pl.allegro.tech.hermes.api.SubscriptionName;
+import pl.allegro.tech.hermes.common.metric.HermesMetrics;
 import pl.allegro.tech.hermes.consumers.supervisor.workload.SubscriptionAssignment;
 import pl.allegro.tech.hermes.consumers.supervisor.workload.SubscriptionAssignmentView;
 import pl.allegro.tech.hermes.consumers.supervisor.workload.WorkBalancer;
@@ -23,6 +25,7 @@ import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
@@ -40,15 +43,22 @@ public class WeightedWorkBalancer implements WorkBalancer {
     private final Duration stabilizationWindowSize;
     private final double minSignificantChangePercent;
     private final SubscriptionProfileProvider subscriptionProfileProvider;
+    private final HermesMetrics metrics;
+
+    private volatile TargetConsumerLoad targetConsumerLoad = new TargetConsumerLoad(Weight.ZERO, 0);
+    private final Map<String, Weight> weights = new ConcurrentHashMap<>();
 
     public WeightedWorkBalancer(Clock clock,
                                 Duration stabilizationWindowSize,
                                 double minSignificantChangePercent,
-                                SubscriptionProfileProvider subscriptionProfileProvider) {
+                                SubscriptionProfileProvider subscriptionProfileProvider,
+                                HermesMetrics metrics) {
         this.clock = clock;
         this.stabilizationWindowSize = stabilizationWindowSize;
         this.minSignificantChangePercent = minSignificantChangePercent;
         this.subscriptionProfileProvider = subscriptionProfileProvider;
+        this.metrics = metrics;
+        metrics.registerGauge("consumer-workload.weighted.avg.ops", (Gauge<Double>) () -> targetConsumerLoad.weight.getOperationsPerSecond());
     }
 
     @Override
@@ -139,6 +149,17 @@ public class WeightedWorkBalancer implements WorkBalancer {
                     break;
                 }
             }
+        }
+        targetConsumerLoad = targetLoad;
+        for (ConsumerNode consumerNode : consumers) {
+            String consumerHostname = consumerNode.getConsumerId().split("\\$")[0];
+            if (!weights.containsKey(consumerHostname)) {
+                metrics.registerGauge(
+                        "consumer-workload.weighted.weight." + HermesMetrics.escapeDots(consumerHostname),
+                        (Gauge<Double>) () -> weights.getOrDefault(consumerHostname, Weight.ZERO).getOperationsPerSecond()
+                );
+            }
+            weights.put(consumerHostname, consumerNode.getWeight());
         }
         return new AssignmentPlan(plan.getUnassignedTasks(), consumers);
     }
