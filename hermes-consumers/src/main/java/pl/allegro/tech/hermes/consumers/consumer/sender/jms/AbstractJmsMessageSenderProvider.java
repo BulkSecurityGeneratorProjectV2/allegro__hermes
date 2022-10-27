@@ -8,7 +8,7 @@ import pl.allegro.tech.hermes.api.Subscription;
 import pl.allegro.tech.hermes.common.exception.InternalProcessingException;
 import pl.allegro.tech.hermes.consumers.consumer.sender.MessageSender;
 import pl.allegro.tech.hermes.consumers.consumer.sender.MessageSenderAdapter;
-import pl.allegro.tech.hermes.consumers.consumer.sender.SendFutureProviderSupplier;
+import pl.allegro.tech.hermes.consumers.consumer.sender.SendFutureProvider;
 import pl.allegro.tech.hermes.consumers.consumer.trace.MetadataAppender;
 import pl.allegro.tech.hermes.consumers.uri.UriUtils;
 
@@ -29,7 +29,7 @@ public abstract class AbstractJmsMessageSenderProvider implements JmsMessageSend
     }
 
     @Override
-    public MessageSender create(Subscription subscription, SendFutureProviderSupplier futureProviderSupplier) {
+    public MessageSender create(Subscription subscription, SendFutureProvider sendFutureProvider) {
         EndpointAddress endpoint = subscription.getEndpoint();
         URI uri = endpoint.getUri();
         ConnectionFactory connectionFactory = getConnectionFactory(uri);
@@ -38,7 +38,7 @@ public abstract class AbstractJmsMessageSenderProvider implements JmsMessageSend
                 endpoint.getPassword()
         );
         JmsMessageSender jmsMessageSender = new JmsMessageSender(jmsContext, extractTopicName(uri), metadataAppender);
-        return new MessageSenderAdapter(jmsMessageSender, futureProviderSupplier.supply());
+        return new MessageSenderAdapter(jmsMessageSender, sendFutureProvider);
     }
 
     @Override

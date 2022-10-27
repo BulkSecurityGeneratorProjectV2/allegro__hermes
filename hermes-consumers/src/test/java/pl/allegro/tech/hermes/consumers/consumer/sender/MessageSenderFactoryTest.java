@@ -18,7 +18,7 @@ import static pl.allegro.tech.hermes.test.helper.builder.SubscriptionBuilder.sub
 public class MessageSenderFactoryTest {
 
     private MessageSender referenceMessageSender = Mockito.mock(MessageSender.class);
-    private SendFutureProviderSupplier futureProviderSupplier = Mockito.mock(SendFutureProviderSupplier.class);
+    private SendFutureProvider futureProviderSupplier = Mockito.mock(SendFutureProvider.class);
 
     @Test
     public void shouldCreateCustomProtocolMessageSender() {
@@ -53,7 +53,7 @@ public class MessageSenderFactoryTest {
     private ProtocolMessageSenderProvider protocolMessageSenderProviderReturning(Object createdMessageSender, String protocol) {
         return new ProtocolMessageSenderProvider() {
             @Override
-            public MessageSender create(Subscription endpoint, SendFutureProviderSupplier futureProviderSupplier) {
+            public MessageSender create(Subscription endpoint, SendFutureProvider sendFutureProvider) {
                 return (MessageSender) createdMessageSender;
             }
 

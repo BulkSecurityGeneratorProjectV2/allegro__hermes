@@ -50,7 +50,7 @@ class ThrottlingSendFutureProviderTest extends Specification {
             1 * acquire()
             1 * registerSuccessfulSending()
         }
-        ThrottlingSendFutureProvider<SingleMessageSendingResult> futureProvider = new ThrottlingSendFutureProvider(
+        ThrottlingSendFutureProvider futureProvider = new ThrottlingSendFutureProvider(
                 serialConsumerRateLimiter,
                 [],
                 futureAsyncTimeout,
@@ -59,7 +59,7 @@ class ThrottlingSendFutureProviderTest extends Specification {
         )
 
         when:
-        CompletableFuture<MessageSendingResult> future = futureProvider.provide(successfulConsumer(), exceptionMapper)
+        CompletableFuture future = futureProvider.provide(successfulConsumer(), exceptionMapper)
         then:
         future.get().succeeded()
 
@@ -71,7 +71,7 @@ class ThrottlingSendFutureProviderTest extends Specification {
             1 * acquire()
             1 * registerFailedSending()
         }
-        ThrottlingSendFutureProvider<SingleMessageSendingResult> futureProvider = new ThrottlingSendFutureProvider(
+        ThrottlingSendFutureProvider futureProvider = new ThrottlingSendFutureProvider(
                 serialConsumerRateLimiter,
                 [],
                 futureAsyncTimeout,
@@ -80,7 +80,7 @@ class ThrottlingSendFutureProviderTest extends Specification {
         )
 
         when:
-        CompletableFuture<MessageSendingResult> future = futureProvider.provide(slowConsumer(5_000), exceptionMapper)
+        CompletableFuture future = futureProvider.provide(slowConsumer(5_000), exceptionMapper)
 
         then:
         future.get().isTimeout()
@@ -92,7 +92,7 @@ class ThrottlingSendFutureProviderTest extends Specification {
             1 * acquire()
             1 * registerFailedSending()
         }
-        ThrottlingSendFutureProvider<SingleMessageSendingResult> futureProvider = new ThrottlingSendFutureProvider(
+        ThrottlingSendFutureProvider futureProvider = new ThrottlingSendFutureProvider(
                 serialConsumerRateLimiter,
                 [],
                 futureAsyncTimeout,
@@ -101,7 +101,7 @@ class ThrottlingSendFutureProviderTest extends Specification {
         )
 
         when:
-        CompletableFuture<MessageSendingResult> future = futureProvider.provide(ordinarilyFailingConsumer(500), exceptionMapper)
+        CompletableFuture future = futureProvider.provide(ordinarilyFailingConsumer(500), exceptionMapper)
 
         then:
         !future.get().succeeded()
@@ -113,8 +113,8 @@ class ThrottlingSendFutureProviderTest extends Specification {
             1 * acquire()
             1 * registerSuccessfulSending()
         }
-        Predicate<MessageSendingResult> ignorable = {m -> m.getStatusCode() == 404}
-        ThrottlingSendFutureProvider<SingleMessageSendingResult> futureProvider = new ThrottlingSendFutureProvider(
+        Predicate ignorable = {m -> m.getStatusCode() == 404}
+        ThrottlingSendFutureProvider futureProvider = new ThrottlingSendFutureProvider(
                 serialConsumerRateLimiter,
                 [ignorable],
                 futureAsyncTimeout,
@@ -123,7 +123,7 @@ class ThrottlingSendFutureProviderTest extends Specification {
         )
 
         when:
-        CompletableFuture<MessageSendingResult> future = futureProvider.provide(ordinarilyFailingConsumer(404), exceptionMapper)
+        CompletableFuture future = futureProvider.provide(ordinarilyFailingConsumer(404), exceptionMapper)
 
         then:
         !future.get().succeeded()
@@ -135,7 +135,7 @@ class ThrottlingSendFutureProviderTest extends Specification {
             1 * acquire()
             1 * registerFailedSending()
         }
-        ThrottlingSendFutureProvider<SingleMessageSendingResult> futureProvider = new ThrottlingSendFutureProvider(
+        ThrottlingSendFutureProvider futureProvider = new ThrottlingSendFutureProvider(
                 serialConsumerRateLimiter,
                 [],
                 futureAsyncTimeout,
@@ -160,7 +160,7 @@ class ThrottlingSendFutureProviderTest extends Specification {
             1 * acquire()
             1 * registerFailedSending()
         }
-        ThrottlingSendFutureProvider<SingleMessageSendingResult> futureProvider = new ThrottlingSendFutureProvider(
+        ThrottlingSendFutureProvider futureProvider = new ThrottlingSendFutureProvider(
                 serialConsumerRateLimiter,
                 [],
                 futureAsyncTimeout,

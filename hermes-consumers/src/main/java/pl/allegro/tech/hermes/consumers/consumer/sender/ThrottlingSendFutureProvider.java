@@ -1,7 +1,6 @@
 package pl.allegro.tech.hermes.consumers.consumer.sender;
 
 import pl.allegro.tech.hermes.consumers.consumer.rate.ConsumerRateLimiter;
-import pl.allegro.tech.hermes.consumers.consumer.rate.SerialConsumerRateLimiter;
 import pl.allegro.tech.hermes.consumers.consumer.sender.timeout.FutureAsyncTimeout;
 
 import java.time.Duration;
@@ -12,7 +11,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 // provides futures which are rate limited and completed exceptionally after given timeout
-public class ThrottlingSendFutureProvider<T extends MessageSendingResult> implements SendFutureProvider<T> {
+public class ThrottlingSendFutureProvider implements SendFutureProvider{
     private final ConsumerRateLimiter rateLimiter;
     private final List<Predicate<MessageSendingResult>> ignore;
     private final FutureAsyncTimeout async;
@@ -31,8 +30,7 @@ public class ThrottlingSendFutureProvider<T extends MessageSendingResult> implem
         this.asyncTimeoutMs = asyncTimeoutMs;
     }
 
-    @Override
-    public CompletableFuture<T> provide(Consumer<CompletableFuture<T>> resultFutureConsumer, Function<Throwable, T> exceptionMapper) {
+    public <T extends MessageSendingResult> CompletableFuture<T> provide(Consumer<CompletableFuture<T>> resultFutureConsumer, Function<Throwable, T> exceptionMapper) {
         try {
             rateLimiter.acquire();
             CompletableFuture<T> resultFuture = new CompletableFuture<>();
@@ -48,7 +46,7 @@ public class ThrottlingSendFutureProvider<T extends MessageSendingResult> implem
         }
     }
 
-    private CompletableFuture<T> whenComplete(CompletableFuture<T> future, Function<Throwable, T> exceptionMapper) {
+    private <T extends MessageSendingResult> CompletableFuture<T> whenComplete(CompletableFuture<T> future, Function<Throwable, T> exceptionMapper) {
         return future.handle((result, throwable) -> {
             if (throwable != null) {
                 rateLimiter.registerFailedSending();
@@ -64,7 +62,7 @@ public class ThrottlingSendFutureProvider<T extends MessageSendingResult> implem
         });
     }
 
-    private void registerResultInRateLimiter(T result) {
+    private void registerResultInRateLimiter(MessageSendingResult result) {
         if (ignore.stream().anyMatch(p -> p.test(result))) {
             rateLimiter.registerSuccessfulSending();
         } else {

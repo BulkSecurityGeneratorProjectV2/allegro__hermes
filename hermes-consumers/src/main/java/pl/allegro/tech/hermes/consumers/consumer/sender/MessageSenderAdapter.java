@@ -7,10 +7,10 @@ import java.util.function.Function;
 
 public class MessageSenderAdapter implements MessageSender {
     private final CompletableFutureAwareMessageSender adaptee;
-    private final SendFutureProvider<MessageSendingResult> futureProvider;
+    private final SendFutureProvider futureProvider;
     private final Function<Throwable, MessageSendingResult> exceptionMapper = MessageSendingResult::failedResult;
 
-    public MessageSenderAdapter(CompletableFutureAwareMessageSender adaptee, SendFutureProvider<MessageSendingResult> futureProvider) {
+    public MessageSenderAdapter(CompletableFutureAwareMessageSender adaptee, SendFutureProvider futureProvider) {
         this.adaptee = adaptee;
         this.futureProvider = futureProvider;
     }

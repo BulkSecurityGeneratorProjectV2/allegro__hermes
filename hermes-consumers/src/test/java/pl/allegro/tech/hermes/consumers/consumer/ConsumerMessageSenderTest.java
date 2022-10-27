@@ -19,7 +19,7 @@ import pl.allegro.tech.hermes.consumers.consumer.result.SuccessHandler;
 import pl.allegro.tech.hermes.consumers.consumer.sender.MessageSender;
 import pl.allegro.tech.hermes.consumers.consumer.sender.MessageSenderFactory;
 import pl.allegro.tech.hermes.consumers.consumer.sender.MessageSendingResult;
-import pl.allegro.tech.hermes.consumers.consumer.sender.SendFutureProviderSupplier;
+import pl.allegro.tech.hermes.consumers.consumer.sender.SendFutureProvider;
 import pl.allegro.tech.hermes.consumers.consumer.sender.timeout.FutureAsyncTimeout;
 import pl.allegro.tech.hermes.consumers.supervisor.workload.weighted.NoOpConsumerNodeLoadRegistry;
 import pl.allegro.tech.hermes.consumers.test.MessageBuilder;
@@ -348,7 +348,7 @@ public class ConsumerMessageSenderTest {
         Subscription subscriptionWithModfiedEndpoint = subscriptionWithEndpoint("http://somewhere:9876");
         MessageSender otherMessageSender = mock(MessageSender.class);
 
-        when(messageSenderFactory.create(eq(subscriptionWithModfiedEndpoint), any(SendFutureProviderSupplier.class))).thenReturn(otherMessageSender);
+        when(messageSenderFactory.create(eq(subscriptionWithModfiedEndpoint), any(SendFutureProvider.class))).thenReturn(otherMessageSender);
         when(otherMessageSender.send(message)).thenReturn(success());
 
         // when
@@ -366,7 +366,7 @@ public class ConsumerMessageSenderTest {
         Subscription subscriptionWithModifiedTimeout = subscriptionWithRequestTimeout(2000);
         MessageSender otherMessageSender = mock(MessageSender.class);
 
-        when(messageSenderFactory.create(eq(subscriptionWithModifiedTimeout), any(SendFutureProviderSupplier.class))).thenReturn(otherMessageSender);
+        when(messageSenderFactory.create(eq(subscriptionWithModifiedTimeout), any(SendFutureProvider.class))).thenReturn(otherMessageSender);
         when(otherMessageSender.send(message)).thenReturn(success());
 
         // when
@@ -484,7 +484,7 @@ public class ConsumerMessageSenderTest {
     }
 
     private ConsumerMessageSender consumerMessageSender(Subscription subscription) {
-        when(messageSenderFactory.create(eq(subscription), any(SendFutureProviderSupplier.class))).thenReturn(messageSender);
+        when(messageSenderFactory.create(eq(subscription), any(SendFutureProvider.class))).thenReturn(messageSender);
         ConsumerMessageSender sender = new ConsumerMessageSender(
                 subscription,
                 messageSenderFactory,

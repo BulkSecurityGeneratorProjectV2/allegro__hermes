@@ -22,14 +22,14 @@ public class JettyBroadCastMessageSender implements MessageSender {
     private final ResolvableEndpointAddress endpoint;
     private final HttpHeadersProvider requestHeadersProvider;
     private final SendingResultHandlers sendingResultHandlers;
-    private final SendFutureProvider<SingleMessageSendingResult> futureProvider;
+    private final SendFutureProvider futureProvider;
     private final Function<Throwable, SingleMessageSendingResult> exceptionMapper = MessageSendingResult::failedResult;
 
     public JettyBroadCastMessageSender(HttpRequestFactory requestFactory,
                                        ResolvableEndpointAddress endpoint,
                                        HttpHeadersProvider requestHeadersProvider,
                                        SendingResultHandlers sendingResultHandlers,
-                                       SendFutureProvider<SingleMessageSendingResult> sendFutureProvider
+                                       SendFutureProvider sendFutureProvider
     ) {
         this.requestFactory = requestFactory;
         this.endpoint = endpoint;

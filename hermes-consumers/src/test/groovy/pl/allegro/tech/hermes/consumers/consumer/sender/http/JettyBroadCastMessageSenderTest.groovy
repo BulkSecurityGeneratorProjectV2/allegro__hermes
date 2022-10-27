@@ -9,6 +9,7 @@ import pl.allegro.tech.hermes.consumers.consumer.Message
 import pl.allegro.tech.hermes.consumers.consumer.sender.MessageSendingResult
 import pl.allegro.tech.hermes.consumers.consumer.sender.MultiMessageSendingResult
 import pl.allegro.tech.hermes.consumers.consumer.sender.SendFutureProvider
+import pl.allegro.tech.hermes.consumers.consumer.sender.SimpleSendFutureProvider
 import pl.allegro.tech.hermes.consumers.consumer.sender.SingleMessageSendingResult
 import pl.allegro.tech.hermes.consumers.consumer.sender.http.headers.AuthHeadersProvider
 import pl.allegro.tech.hermes.consumers.consumer.sender.http.headers.HermesHeadersProvider
@@ -57,14 +58,7 @@ class JettyBroadCastMessageSenderTest extends Specification {
     SendingResultHandlers resultHandlersProvider = new DefaultSendingResultHandlers()
 
     @Shared
-    SendFutureProvider<SingleMessageSendingResult> futureProvider = new SendFutureProvider<SingleMessageSendingResult>() {
-        @Override
-        CompletableFuture<SingleMessageSendingResult> provide(Consumer<CompletableFuture<SingleMessageSendingResult>> resultFutureConsumer, Function<Throwable, SingleMessageSendingResult> exceptionMapper) {
-            CompletableFuture<SingleMessageSendingResult> cf = new CompletableFuture<>()
-            resultFutureConsumer.accept(cf)
-            return cf
-        }
-    }
+    SendFutureProvider futureProvider = new SimpleSendFutureProvider()
 
     def setupSpec() throws Exception {
         wireMockServers.forEach { it.start() }

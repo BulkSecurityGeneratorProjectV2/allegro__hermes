@@ -43,7 +43,7 @@ public class ConsumerMessageSender {
     private final Timer consumerLatencyTimer;
     private MessageSender messageSender;
     private Subscription subscription;
-    private SendFutureProviderSupplier sendFutureProviderSupplier;
+    private SendFutureProvider sendFutureProvider;
 
     private ScheduledExecutorService retrySingleThreadExecutor;
     private volatile boolean running = true;
@@ -66,9 +66,9 @@ public class ConsumerMessageSender {
         this.errorHandlers = errorHandlers;
         this.messageSenderFactory = messageSenderFactory;
         this.clock = clock;
-        this.sendFutureProviderSupplier = supplier(rateLimiter, futureAsyncTimeout, subscription, asyncTimeoutMs);
         this.loadRecorder = loadRecorder;
-        this.messageSender = messageSenderFactory.create(subscription, supplier(rateLimiter, futureAsyncTimeout, subscription, asyncTimeoutMs));
+        this.sendFutureProvider = provider(rateLimiter, futureAsyncTimeout, subscription, asyncTimeoutMs);
+        this.messageSender = messageSenderFactory.create(subscription, this.sendFutureProvider);
         this.subscription = subscription;
         this.inflight = inflight;
         this.consumerLatencyTimer = metrics.subscriptionLatencyTimer();
@@ -147,26 +147,23 @@ public class ConsumerMessageSender {
         );
 
         this.subscription = newSubscription;
-        this.sendFutureProviderSupplier = this.sendFutureProviderSupplier.mutate(
-                newSubscription.getSerialSubscriptionPolicy().getRequestTimeout(),
-                ignorableErrors(newSubscription)
-        );
+//        this.sendFutureProvider = sendFutureProvider; //TODO: new send future provider
 
         boolean httpClientChanged = this.subscription.isHttp2Enabled() != newSubscription.isHttp2Enabled();
 
         if (endpointUpdated || subscriptionPolicyUpdated || endpointAddressResolverMetadataChanged
                 || oAuthPolicyChanged || httpClientChanged) {
             this.messageSender.stop();
-            this.messageSender = messageSenderFactory.create(newSubscription, sendFutureProviderSupplier);
+            this.messageSender = messageSenderFactory.create(newSubscription, sendFutureProvider);
         }
     }
 
-    private static SendFutureProviderSupplier supplier(SerialConsumerRateLimiter serialConsumerRateLimiter,
+    private static SendFutureProvider provider(SerialConsumerRateLimiter serialConsumerRateLimiter,
                                                        FutureAsyncTimeout asyncTimeout, Subscription subscription, int asyncTimeoutMs
     ) {
         Integer requestTimeoutMs = subscription.getSerialSubscriptionPolicy().getRequestTimeout();
         List<Predicate<MessageSendingResult>> ignorableErrors = ignorableErrors(subscription);
-        return new SendFutureProviderSupplier(serialConsumerRateLimiter, asyncTimeout, requestTimeoutMs, asyncTimeoutMs, ignorableErrors);
+        return new ThrottlingSendFutureProvider(serialConsumerRateLimiter, ignorableErrors, asyncTimeout, requestTimeoutMs, asyncTimeoutMs);
 
     }
 
