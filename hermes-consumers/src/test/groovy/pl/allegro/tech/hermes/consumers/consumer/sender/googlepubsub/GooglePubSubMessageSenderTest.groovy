@@ -8,11 +8,13 @@ import com.google.pubsub.v1.PubsubMessage
 import com.google.pubsub.v1.TopicName
 import io.grpc.Status
 import pl.allegro.tech.hermes.consumers.consumer.sender.MessageSendingResult
+import pl.allegro.tech.hermes.consumers.consumer.sender.SendFutureProvider
+import pl.allegro.tech.hermes.consumers.consumer.sender.SimpleSendFutureProvider
 import pl.allegro.tech.hermes.consumers.test.MessageBuilder
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Subject
 
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
 class GooglePubSubMessageSenderTest extends Specification {
@@ -20,8 +22,8 @@ class GooglePubSubMessageSenderTest extends Specification {
     Publisher publisher = Mock(Publisher)
 
     GooglePubSubSenderTarget senderTarget = GooglePubSubSenderTarget.builder()
-        .withTopicName(TopicName.of("test-project", "topic-name"))
-        .build()
+            .withTopicName(TopicName.of("test-project", "topic-name"))
+            .build()
 
     GooglePubSubClientsPool clientsPool = Mock(GooglePubSubClientsPool)
 
@@ -30,6 +32,9 @@ class GooglePubSubMessageSenderTest extends Specification {
 
     @Subject
     GooglePubSubMessageSender sender
+
+    @Shared
+    SendFutureProvider sendFutureProvider = new SimpleSendFutureProvider();
 
     void setup() {
         clientsPool.acquire(senderTarget) >> client
@@ -41,9 +46,8 @@ class GooglePubSubMessageSenderTest extends Specification {
         publisher.publish(_ as PubsubMessage) >> apiFuture("test")
 
         when:
-        CompletableFuture<MessageSendingResult> future = new CompletableFuture();
-        sender.send(MessageBuilder.testMessage(), future)
-        MessageSendingResult result = future.get(1, TimeUnit.SECONDS)
+        MessageSendingResult result = sender.send(MessageBuilder.testMessage(), sendFutureProvider)
+                .get(1, TimeUnit.SECONDS)
 
         then:
         result.succeeded()
@@ -55,9 +59,8 @@ class GooglePubSubMessageSenderTest extends Specification {
         publisher.publish(_ as PubsubMessage) >> apiFuture(exception)
 
         when:
-        CompletableFuture<MessageSendingResult> future = new CompletableFuture();
-        sender.send(MessageBuilder.testMessage(), future)
-        MessageSendingResult result = future.get(1, TimeUnit.SECONDS)
+        MessageSendingResult result = sender.send(MessageBuilder.testMessage(), sendFutureProvider)
+                .get(1, TimeUnit.SECONDS)
 
         then:
         !result.succeeded()

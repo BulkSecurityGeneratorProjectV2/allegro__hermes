@@ -41,6 +41,10 @@ public class ConsumerMessageSender {
     private final InflightsPool inflight;
     private final SubscriptionLoadRecorder loadRecorder;
     private final Timer consumerLatencyTimer;
+    private final SerialConsumerRateLimiter rateLimiter;
+    private final FutureAsyncTimeout async;
+    private final int asyncTimeoutMs;
+
     private MessageSender messageSender;
     private Subscription subscription;
     private SendFutureProvider sendFutureProvider;
@@ -67,8 +71,11 @@ public class ConsumerMessageSender {
         this.messageSenderFactory = messageSenderFactory;
         this.clock = clock;
         this.loadRecorder = loadRecorder;
+        this.async = futureAsyncTimeout;
+        this.rateLimiter = rateLimiter;
+        this.asyncTimeoutMs = asyncTimeoutMs;
         this.sendFutureProvider = provider(rateLimiter, futureAsyncTimeout, subscription, asyncTimeoutMs);
-        this.messageSender = messageSenderFactory.create(subscription, this.sendFutureProvider);
+        this.messageSender = messageSenderFactory.create(subscription);
         this.subscription = subscription;
         this.inflight = inflight;
         this.consumerLatencyTimer = metrics.subscriptionLatencyTimer();
@@ -121,7 +128,7 @@ public class ConsumerMessageSender {
     private void sendMessage(final Message message) {
         loadRecorder.recordSingleOperation();
         Timer.Context timer = consumerLatencyTimer.time();
-        CompletableFuture<MessageSendingResult> response = messageSender.send(message);
+        CompletableFuture<MessageSendingResult> response = messageSender.send(message, sendFutureProvider);
 
         response.thenAcceptAsync(new ResponseHandlingListener(message, timer), deliveryReportingExecutor)
                 .exceptionally(e -> {
@@ -147,14 +154,14 @@ public class ConsumerMessageSender {
         );
 
         this.subscription = newSubscription;
-//        this.sendFutureProvider = sendFutureProvider; //TODO: new send future provider
+        this.sendFutureProvider = provider(this.rateLimiter, this.async, this.subscription, this.asyncTimeoutMs);
 
         boolean httpClientChanged = this.subscription.isHttp2Enabled() != newSubscription.isHttp2Enabled();
 
         if (endpointUpdated || subscriptionPolicyUpdated || endpointAddressResolverMetadataChanged
                 || oAuthPolicyChanged || httpClientChanged) {
             this.messageSender.stop();
-            this.messageSender = messageSenderFactory.create(newSubscription, sendFutureProvider);
+            this.messageSender = messageSenderFactory.create(newSubscription);
         }
     }
 

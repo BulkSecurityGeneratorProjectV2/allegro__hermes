@@ -22,41 +22,38 @@ public class JettyBroadCastMessageSender implements MessageSender {
     private final ResolvableEndpointAddress endpoint;
     private final HttpHeadersProvider requestHeadersProvider;
     private final SendingResultHandlers sendingResultHandlers;
-    private final SendFutureProvider futureProvider;
     private final Function<Throwable, SingleMessageSendingResult> exceptionMapper = MessageSendingResult::failedResult;
 
     public JettyBroadCastMessageSender(HttpRequestFactory requestFactory,
                                        ResolvableEndpointAddress endpoint,
                                        HttpHeadersProvider requestHeadersProvider,
-                                       SendingResultHandlers sendingResultHandlers,
-                                       SendFutureProvider sendFutureProvider
+                                       SendingResultHandlers sendingResultHandlers
     ) {
         this.requestFactory = requestFactory;
         this.endpoint = endpoint;
         this.requestHeadersProvider = requestHeadersProvider;
         this.sendingResultHandlers = sendingResultHandlers;
-        this.futureProvider = sendFutureProvider;
     }
 
     @Override
-    public CompletableFuture<MessageSendingResult> send(Message message) {
+    public CompletableFuture<MessageSendingResult> send(Message message, SendFutureProvider sendFutureProvider) {
         try {
-            return sendMessage(message).thenApply(MultiMessageSendingResult::new);
+            return sendMessage(message, sendFutureProvider).thenApply(MultiMessageSendingResult::new);
         } catch (Exception exception) {
             return CompletableFuture.completedFuture(exceptionMapper.apply(exception));
         }
     }
 
-    private CompletableFuture<List<SingleMessageSendingResult>> sendMessage(Message message) {
+    private CompletableFuture<List<SingleMessageSendingResult>> sendMessage(Message message, SendFutureProvider sendFutureProvider) {
         try {
-            List<CompletableFuture<SingleMessageSendingResult>> results = collectResults(message);
-            return mergeResults(results);
+            List<CompletableFuture<SingleMessageSendingResult>> results = collectResults(message, sendFutureProvider);
+            return mergeResults(results, sendFutureProvider);
         } catch (EndpointAddressResolutionException exception) {
             return CompletableFuture.completedFuture(Collections.singletonList(exceptionMapper.apply(exception)));
         }
     }
 
-    private List<CompletableFuture<SingleMessageSendingResult>> collectResults(Message message) throws EndpointAddressResolutionException {
+    private List<CompletableFuture<SingleMessageSendingResult>> collectResults(Message message, SendFutureProvider sendFutureProvider) throws EndpointAddressResolutionException {
 
         final HttpRequestData requestData = new HttpRequestDataBuilder()
                 .withRawAddress(endpoint.getRawAddress())
@@ -67,11 +64,11 @@ public class JettyBroadCastMessageSender implements MessageSender {
         return endpoint.resolveAllFor(message).stream()
                 .filter(uri -> message.hasNotBeenSentTo(uri.toString()))
                 .map(uri -> requestFactory.buildRequest(message, uri, headers))
-                .map(this::processResponse)
+                .map(r -> processResponse(r, sendFutureProvider))
                 .collect(Collectors.toList());
     }
 
-    private CompletableFuture<List<SingleMessageSendingResult>> mergeResults(List<CompletableFuture<SingleMessageSendingResult>> results) {
+    private CompletableFuture<List<SingleMessageSendingResult>> mergeResults(List<CompletableFuture<SingleMessageSendingResult>> results, SendFutureProvider sendFutureProvider)  {
         return CompletableFuture.allOf(results.toArray(new CompletableFuture[results.size()]))
                 .thenApply(v -> results.stream()
                         .map(CompletableFuture::join)
@@ -82,8 +79,8 @@ public class JettyBroadCastMessageSender implements MessageSender {
                         ).build());
     }
 
-    private CompletableFuture<SingleMessageSendingResult> processResponse(Request request) {
-        return futureProvider.provide(
+    private CompletableFuture<SingleMessageSendingResult> processResponse(Request request, SendFutureProvider sendFutureProvider) {
+        return sendFutureProvider.provide(
                 resultFuture -> request.send(sendingResultHandlers.handleSendingResultForBroadcast(resultFuture)),
                 exceptionMapper);
 

@@ -9,7 +9,7 @@ import java.util.concurrent.CompletableFuture;
 
 public class JettyBroadCastResponseListener extends BufferingResponseListener {
 
-    CompletableFuture<? super SingleMessageSendingResult> resultFuture;
+    CompletableFuture<SingleMessageSendingResult> resultFuture;
 
     public JettyBroadCastResponseListener(CompletableFuture<SingleMessageSendingResult> resultFuture) {
         this.resultFuture = resultFuture;

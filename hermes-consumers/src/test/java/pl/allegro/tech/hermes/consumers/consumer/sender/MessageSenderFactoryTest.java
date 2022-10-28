@@ -18,7 +18,6 @@ import static pl.allegro.tech.hermes.test.helper.builder.SubscriptionBuilder.sub
 public class MessageSenderFactoryTest {
 
     private MessageSender referenceMessageSender = Mockito.mock(MessageSender.class);
-    private SendFutureProvider futureProviderSupplier = Mockito.mock(SendFutureProvider.class);
 
     @Test
     public void shouldCreateCustomProtocolMessageSender() {
@@ -30,7 +29,7 @@ public class MessageSenderFactoryTest {
         );
 
         // when
-        MessageSender sender = factory.create(subscription, futureProviderSupplier);
+        MessageSender sender = factory.create(subscription);
 
         // then
         assertThat(sender).isEqualTo(referenceMessageSender);
@@ -43,7 +42,7 @@ public class MessageSenderFactoryTest {
         Subscription subscription = subscription("group.topic", "subscription", "unknown://localhost:8080/test").build();
 
         // when
-        catchException(factory).create(subscription, futureProviderSupplier);
+        catchException(factory).create(subscription);
 
         // then
         assertThat(CatchException.<EndpointProtocolNotSupportedException>caughtException())
@@ -53,7 +52,7 @@ public class MessageSenderFactoryTest {
     private ProtocolMessageSenderProvider protocolMessageSenderProviderReturning(Object createdMessageSender, String protocol) {
         return new ProtocolMessageSenderProvider() {
             @Override
-            public MessageSender create(Subscription endpoint, SendFutureProvider sendFutureProvider) {
+            public MessageSender create(Subscription endpoint) {
                 return (MessageSender) createdMessageSender;
             }
 

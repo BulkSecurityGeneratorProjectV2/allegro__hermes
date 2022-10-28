@@ -19,7 +19,7 @@ import static pl.allegro.tech.hermes.common.http.MessageMetadataHeaders.TOPIC_NA
 import static pl.allegro.tech.hermes.consumers.consumer.sender.MessageSendingResult.failedResult;
 import static pl.allegro.tech.hermes.consumers.consumer.sender.MessageSendingResult.succeededResult;
 
-public class JmsMessageSender implements CompletableFutureAwareMessageSender {
+public class JmsMessageSender extends CompletableFutureAwareMessageSender {
 
     private static final Logger logger = LoggerFactory.getLogger(JmsMessageSender.class);
 
@@ -27,9 +27,7 @@ public class JmsMessageSender implements CompletableFutureAwareMessageSender {
     private final JMSContext jmsContext;
     private final MetadataAppender<javax.jms.Message> metadataAppender;
 
-    public JmsMessageSender(JMSContext jmsContext,
-                            String destinationTopic,
-                            MetadataAppender<javax.jms.Message> metadataAppender) {
+    public JmsMessageSender(JMSContext jmsContext, String destinationTopic, MetadataAppender<javax.jms.Message> metadataAppender) {
         this.jmsContext = jmsContext;
         this.topicName = destinationTopic;
         this.metadataAppender = metadataAppender;
@@ -41,7 +39,7 @@ public class JmsMessageSender implements CompletableFutureAwareMessageSender {
     }
 
     @Override
-    public void send(Message msg, final CompletableFuture<MessageSendingResult> resultFuture) {
+    protected void sendMessage(Message msg, final CompletableFuture<MessageSendingResult> resultFuture) {
         try {
             BytesMessage message = jmsContext.createBytesMessage();
             message.writeBytes(msg.getData());

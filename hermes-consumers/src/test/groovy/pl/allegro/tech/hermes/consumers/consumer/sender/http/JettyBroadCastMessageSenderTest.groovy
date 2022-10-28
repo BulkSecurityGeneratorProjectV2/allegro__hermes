@@ -78,7 +78,7 @@ class JettyBroadCastMessageSenderTest extends Specification {
         def httpRequestFactory = new DefaultHttpRequestFactory(client, 1000, 1000, new DefaultHttpMetadataAppender())
 
         messageSender = new JettyBroadCastMessageSender(httpRequestFactory, address,
-                requestHeadersProvider, resultHandlersProvider, futureProvider);
+                requestHeadersProvider, resultHandlersProvider);
     }
 
     def "should send message successfully in parallel to all urls"() {
@@ -86,7 +86,7 @@ class JettyBroadCastMessageSenderTest extends Specification {
         serviceEndpoints.forEach { endpoint -> endpoint.setDelay(300).expectMessages(TEST_MESSAGE_CONTENT)}
 
         when:
-        def future = messageSender.send(testMessage());
+        def future = messageSender.send(testMessage(), futureProvider);
 
         then:
         future.get(1, TimeUnit.SECONDS).succeeded()
@@ -102,7 +102,7 @@ class JettyBroadCastMessageSenderTest extends Specification {
         serviceEndpoints.forEach { endpoint -> endpoint.expectMessages(TEST_MESSAGE_CONTENT)}
 
         when:
-        def future = messageSender.send(testMessage())
+        def future = messageSender.send(testMessage(), futureProvider)
 
         then:
         serviceEndpoints.forEach { it.waitUntilReceived() }
@@ -124,7 +124,7 @@ class JettyBroadCastMessageSenderTest extends Specification {
         message.incrementRetryCounter([alreadySentServiceEndpoint.url]);
 
         when:
-        def future = messageSender.send(message)
+        def future = messageSender.send(message, futureProvider)
 
         then:
         alreadySentServiceEndpoint.makeSureNoneReceived()
@@ -143,10 +143,10 @@ class JettyBroadCastMessageSenderTest extends Specification {
 
         def httpRequestFactory = new DefaultHttpRequestFactory(client, 1000, 1000, new DefaultHttpMetadataAppender())
         messageSender = new JettyBroadCastMessageSender(httpRequestFactory, address,
-                requestHeadersProvider, resultHandlersProvider, futureProvider)
+                requestHeadersProvider, resultHandlersProvider)
 
         when:
-        def future = messageSender.send(testMessage())
+        def future = messageSender.send(testMessage(), futureProvider)
 
         then:
         MessageSendingResult messageSendingResult = future.get(1, TimeUnit.SECONDS)

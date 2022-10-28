@@ -10,7 +10,7 @@ import java.util.concurrent.ExecutionException;
 
 import static pl.allegro.tech.hermes.consumers.consumer.sender.MessageSendingResult.failedResult;
 
-class GooglePubSubMessageSender implements CompletableFutureAwareMessageSender {
+class GooglePubSubMessageSender extends CompletableFutureAwareMessageSender {
 
     private final GooglePubSubClient googlePubSubClient;
     private final GooglePubSubSenderTarget resolvedTarget;
@@ -24,7 +24,7 @@ class GooglePubSubMessageSender implements CompletableFutureAwareMessageSender {
     }
 
     @Override
-    public void send(Message message, CompletableFuture<MessageSendingResult> resultFuture) {
+    protected void sendMessage(Message message, CompletableFuture<MessageSendingResult> resultFuture) {
         try {
             googlePubSubClient.publish(message, resultFuture);
         } catch (IOException | ExecutionException | InterruptedException exception) {

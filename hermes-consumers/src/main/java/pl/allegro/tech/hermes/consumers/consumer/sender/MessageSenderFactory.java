@@ -21,14 +21,14 @@ public class MessageSenderFactory {
         }
     }
 
-    public MessageSender create(Subscription subscription, SendFutureProvider sendFutureProvider) {
+    public MessageSender create(Subscription subscription) {
         EndpointAddress endpoint = subscription.getEndpoint();
 
         ProtocolMessageSenderProvider provider = protocolProviders.get(endpoint.getProtocol());
         if (provider == null) {
             throw new EndpointProtocolNotSupportedException(endpoint);
         }
-        return provider.create(subscription, sendFutureProvider);
+        return provider.create(subscription);
     }
 
     private void addSupportedProtocol(String protocol, ProtocolMessageSenderProvider provider) {
