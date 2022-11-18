@@ -14,6 +14,7 @@ import pl.allegro.tech.hermes.test.helper.avro.AvroUser;
 import pl.allegro.tech.hermes.test.helper.avro.AvroUserSchemaLoader;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,7 +30,7 @@ public class ChronicleMapMessageRepositoryTest {
 
     @Before
     public void setUp() throws Throwable {
-        file = File.createTempFile("local_backup", ".dat");
+        file = Files.createTempFile("local_backup", ".dat").toFile();
         messageRepository = new ChronicleMapMessageRepository(file, ENTRIES, AVERAGE_MESSAGE_SIZE);
     }
 
